@@ -2,8 +2,8 @@
 
 Folio lets a visitor enter their details, save them to an **online database (Supabase)**, choose one of **3 resume templates**, preview the result, and then **edit or delete** it. It is a static website (plain HTML, CSS and JavaScript, no framework or build step) hosted on **GitHub Pages**.
 
-- **Live URL:** _paste your GitHub Pages link here_
-- **Database:** Supabase (PostgreSQL), project: _your project name_
+- **Live URL:** parabkurt-cymk.github.io/Folio
+- **Database:** Supabase (PostgreSQL), project: Folio
 - **Hosting:** GitHub Pages
 
 ---
@@ -16,8 +16,7 @@ Folio lets a visitor enter their details, save them to an **online database (Sup
 | `style.css` | All design: colors, layouts, the 3 resume templates, animations, dark mode, mobile rules. |
 | `script.js` | All logic: page routing, form, template rendering, database calls, animations that need JavaScript. |
 | `config.js` | Holds the Supabase project URL and the public (publishable/anon) key. **Never put a secret key here.** |
-| `schema.sql` | Creates the `portfolios` table and the security rules. Run once in the Supabase SQL Editor. |
-| `logo.svg`, `logo-512.png` | The single-letter "F" logo, also used as the browser tab icon. |
+| `schema.sql` | Creates the 6 tables with their primary and foreign keys and the security rules. Run once in the Supabase SQL Editor. |
 
 Load order in `index.html`: Supabase library (CDN, pinned version) → `config.js` → `script.js`. `config.js` must come before `script.js` because the script reads `window.SUPABASE_CONFIG` as soon as it starts.
 
@@ -68,23 +67,37 @@ The chosen template number is kept in `tpl` (1, 2 or 3). `S` is a tiny helper ar
 
 ## 3. The database flow (Supabase)
 
-### 3.1 Table structure (`schema.sql`)
-Table `public.portfolios`:
+### 3.1 Table structure and keys (`schema.sql`)
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid | primary key, auto-generated |
-| `user_id` | uuid | **unique**, defaults to `auth.uid()`; one portfolio per visitor |
-| `full_name` | text | required |
-| `email`, `phone`, `address`, `about` | text | personal info |
-| `education`, `skills`, `projects`, `experience`, `links` | text | list sections stored as text (see 4.2) |
-| `photo` | text | small resized image stored as a data URL |
-| `template` | smallint | 1–3 (checked by the database) |
-| `created_at`, `updated_at` | timestamptz | timestamps |
+The database has **6 tables**. A **portfolio** is the parent table. Education, skills, projects, experiences and links are **child tables**, linked to it by a foreign key. This is a **one-to-many** relationship: one portfolio has many education entries, many projects, and so on.
+
+```mermaid
+erDiagram
+  AUTH_USERS ||--o| PORTFOLIOS : "user_id (FK)"
+  PORTFOLIOS ||--o{ EDUCATIONS : "portfolio_id (FK)"
+  PORTFOLIOS ||--o{ SKILLS : "portfolio_id (FK)"
+  PORTFOLIOS ||--o{ PROJECTS : "portfolio_id (FK)"
+  PORTFOLIOS ||--o{ EXPERIENCES : "portfolio_id (FK)"
+  PORTFOLIOS ||--o{ LINKS : "portfolio_id (FK)"
+```
+
+| Table | Columns | PK | FK |
+|---|---|---|---|
+| `portfolios` | id, user_id, full_name, email, phone, address, about, photo, template (1–3), created_at, updated_at | `id` | `user_id` → `auth.users(id)` (unique: one portfolio per visitor) |
+| `educations` | id, portfolio_id, school, years, position | `id` | `portfolio_id` → `portfolios(id)` |
+| `skills` | id, portfolio_id, name, position | `id` | `portfolio_id` → `portfolios(id)` |
+| `projects` | id, portfolio_id, title, description, position | `id` | `portfolio_id` → `portfolios(id)` |
+| `experiences` | id, portfolio_id, role, years, position | `id` | `portfolio_id` → `portfolios(id)` |
+| `links` | id, portfolio_id, label, url, position | `id` | `portfolio_id` → `portfolios(id)` |
+
+- **Primary key (PK):** `id` in every table is unique and never empty, so each row can be identified.
+- **Foreign key (FK):** `portfolio_id` points to a real row in `portfolios`. The database refuses a child row whose portfolio does not exist.
+- **`on delete cascade`:** deleting a portfolio automatically deletes all of its education, skills, projects, experiences and links.
+- **`position`:** remembers the order of the rows, so lists come back in the order the user typed them.
 
 ### 3.2 Security
 - **Anonymous sign-in:** the first time someone opens the site, `userId()` calls `sb.auth.signInAnonymously()`. Supabase gives that browser a private user ID without any login screen.
-- **Row Level Security (RLS)** is switched on, with 4 policies (select / insert / update / delete) that all say `auth.uid() = user_id`. So a visitor can only read, change or delete **their own row**, even though the public key is visible in the page.
+- **Row Level Security (RLS)** is switched on for all tables. On `portfolios`, 4 policies (select / insert / update / delete) say `auth.uid() = user_id`. On each child table, one policy only allows a row if its parent portfolio belongs to the visitor. So a visitor can only read, change or delete **their own data**, even though the public key is visible in the page.
 - The public (anon/publishable) key is safe to publish. The secret/service_role key is never used.
 
 ### 3.3 The code that talks to the database (top of `script.js`)
@@ -92,11 +105,12 @@ Table `public.portfolios`:
 | Function | Job |
 |---|---|
 | `sb` | The Supabase client. It is `null` if `config.js` still has placeholder text, so the site falls back to browser-only storage. |
-| `toRow(p, t)` / `fromRow(r)` | Convert between the JavaScript names (`name`, `edu`, `proj`, `exp`, `pic`) and the database column names (`full_name`, `education`, `projects`, `experience`, `photo`). |
+| `CHILD` | Splits the form text into rows for each child table (for example `Task App \| To-do app` becomes `title = Task App`, `description = To-do app`). |
+| `fromRows(r)` | The reverse: joins the rows from the child tables back into the text the form and templates use. |
 | `userId()` | Returns the current user ID, signing in anonymously if needed. |
-| `cloudInit()` | **Retrieve.** On page load: selects this user's row. If found, fills `P` and `tpl`; if not, clears them. Then the page is redrawn. |
-| `cloudSave()` | **Add + Save + Edit.** Does an `upsert` on `user_id`: inserts the row the first time, updates it afterwards. |
-| `cloudDelete()` | **Delete.** Deletes the row where `user_id` equals the current user. |
+| `cloudInit()` | **Retrieve.** On page load: selects this user's portfolio **with all child rows in one query** (`select('*, educations(*), skills(*), ...')`, which Supabase can do because of the foreign keys). Fills `P` and `tpl`, then the page is redrawn. |
+| `cloudSave()` | **Add + Save + Edit.** (1) `upsert` the `portfolios` row (insert the first time, update afterwards) and get its `id`. (2) For each child table: delete its old rows for that `portfolio_id`, then insert the current rows with their `position`. |
+| `cloudDelete()` | **Delete.** Deletes the visitor's `portfolios` row. The foreign keys with `on delete cascade` remove all child rows automatically. |
 | `hook(key, isDelete)` | Called by the storage helper `S` every time the app saves or deletes locally. It connects the app to the database (see below). |
 
 ### 3.4 How a save travels
@@ -112,8 +126,9 @@ sequenceDiagram
   F->>S: store P locally
   S->>H: hook('folio_p')
   H->>H: wait 300 ms (debounce)
-  H->>DB: cloudSave() -> upsert row
-  DB-->>U: row stored (RLS checks user_id)
+  H->>DB: cloudSave() -> upsert portfolios row (gets id)
+  H->>DB: replace rows in educations, skills, projects, experiences, links (FK = id)
+  DB-->>U: stored (RLS checks the owner)
 ```
 
 The 300 ms **debounce** (`clearTimeout` + `setTimeout`) means rapid changes, such as picking a template and then clicking Generate, are combined into one database request.
@@ -122,10 +137,10 @@ The 300 ms **debounce** (`clearTimeout` + `setTimeout`) means rapid changes, suc
 
 | Operation | Where it happens | Database call |
 |---|---|---|
-| Add / Save | `form()` Save button | `upsert` (insert) |
-| Retrieve | page load, `cloudInit()` | `select ... eq('user_id')` |
-| Edit | Edit button → `form()` → Save | `upsert` (update) |
-| Delete | `manage()` Delete button | `delete ... eq('user_id')` |
+| Add / Save | `form()` Save button | `upsert` on `portfolios`, then `insert` into the child tables |
+| Retrieve | page load, `cloudInit()` | one `select` with the child tables embedded |
+| Edit | Edit button → `form()` → Save | `upsert` (update) + replace child rows |
+| Delete | `manage()` Delete button | `delete` on `portfolios` (children cascade) |
 | Template choice | `templates()` | `upsert` (updates `template`) |
 
 **To verify:** after saving, open Supabase → Table Editor → `portfolios` to see the row. Refreshing the site, or clearing the browser's local storage, still brings the data back because `cloudInit()` reloads it from the database.
@@ -211,13 +226,13 @@ Collects a star rating, which template to improve, requested features and commen
 
 ---
 
-## 5. Setup
+## 5. The Setup
 
-1. Create a Supabase project. Under **Authentication → Sign In / Providers**, turn on **Allow anonymous sign-ins**.
-2. Open **SQL Editor**, paste `schema.sql` and click **Run**. Check that `portfolios` shows RLS enabled.
+1. Created a Supabase project. Under **Authentication → Sign In / Providers**, turned on **Allow anonymous sign-ins**.
+2. Opened **SQL Editor**, pasted `schema.sql` and clicked **Run** (it first deletes any older version of these tables). Checked that all 6 tables show RLS enabled.
 3. Put the **Project URL** and **publishable/anon key** in `config.js`.
-4. Push all files to GitHub (with `index.html` at the root). Turn on **Settings → Pages** (branch `main`, folder `/root`).
-5. Open the link. The banner on the Information page should say "Connected".
+4. Pushed all files to GitHub (with `index.html` at the root). Turned on **Settings → Pages** (branch `main`, folder `/root`).
+5. Opened the link. And the banner on the Information page should say "Connected".
 
 ## 6. Testing checklist
 1. Open the site and click **Create Portfolio**.
@@ -229,8 +244,8 @@ Collects a star rating, which template to improve, requested features and commen
 
 ## 7. Limitations
 - There is no login, so a portfolio belongs to one browser. A different browser or device starts with an empty portfolio.
-- The list sections are stored as text instead of separate tables, to keep the structure simple.
+- Saving replaces all child rows each time instead of changing only the rows that changed (simple, but not the most efficient).
 - Feedback is stored in the browser only.
 
 ## 8. Notes
-Built with AI assistance (Claude), then tested and customized by the student.
+Built and helped with AI assistance (Claude), then tested and customized by us student(Frontend).
