@@ -6,9 +6,13 @@ Folio lets a visitor enter their details, save them to an **online database (Sup
 - **Database:** Supabase (PostgreSQL), project: Folio
 - **Hosting:** GitHub Pages
 
-[!HTML5](https://img.shields.io/badge/html5-orange?style=for-the-badge&logo=html5&logoColor=%23FFFFFF)](https://developer.mozilla.org/en-US/docs/Web/HTML)
-[!CSS](https://img.shields.io/badge/css-blue?style=for-the-badge&logo=css&logoColor=%23FFFFFF)](https://developer.mozilla.org/en-US/docs/Web/CSS)
-[!JavaScript](https://img.shields.io/badge/javascript-yellow?style=for-the-badge&logo=javascript&logoColor=%23FFFFFF)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+
+[![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
+
+[![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
+
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+
 
 
 ---
