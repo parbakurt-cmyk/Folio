@@ -9,9 +9,9 @@ Folio lets a visitor enter their details, save them to an **online database (Sup
 <div align="center">
   <img src="folio_banner.png" alt="Folio - Online Portfolio Generator" width="100%">
 </div>
-
+<div align="center">
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML) [![CSS](https://img.shields.io/badge/css-blue?style=for-the-badge&logo=css&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS) [![JavaScript](https://img.shields.io/badge/javascript-yellow?style=for-the-badge&logo=javascript&logoColor=%23FFFFFF)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-
+</div>
 
 
 ---
